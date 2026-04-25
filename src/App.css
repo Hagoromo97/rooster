@@ -863,7 +863,15 @@ body {
   box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.05);
 }
 
-.sdcn-hint {\n  font-size: 0.75rem;\n  color: var(--text-subtle);\n  line-height: 1;\n}\n\n.sdcn-input.input-muted {\n  color: var(--text-subtle);\n}
+.sdcn-hint {
+  font-size: 0.75rem;
+  color: var(--text-subtle);
+  line-height: 1;
+}
+
+.sdcn-input.input-muted {
+  color: var(--text-subtle);
+}
 
 .sdcn-row {
   display: grid;
