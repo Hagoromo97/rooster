@@ -214,6 +214,41 @@ body {
   filter: brightness(0.96);
 }
 
+.mode-toggle {
+  min-width: 6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+}
+
+.mode-toggle-icon {
+  width: 1.22rem;
+  height: 1.22rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.mode-toggle:hover .mode-toggle-icon {
+  transform: rotate(-12deg);
+}
+
+.mode-toggle-icon.is-dark {
+  transform: rotate(10deg);
+}
+
+.mode-toggle:hover .mode-toggle-icon.is-dark {
+  transform: rotate(0deg);
+}
+
+.mode-toggle-label {
+  min-width: 2.2rem;
+  text-align: left;
+  letter-spacing: 0.01em;
+}
+
 .app-header {
   margin: 0;
   padding: 1.35rem 1rem 1.25rem;
@@ -314,7 +349,8 @@ body {
 }
 
 .calendar-card {
-  width: 100%;
+  width: auto;
+  margin-inline: clamp(0.5rem, 2vw, 1rem);
   background: var(--panel-bg);
   border: 0;
   border-radius: 0;
@@ -421,10 +457,23 @@ body {
 
 .fc .resource-label-wrap {
   width: 100%;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
+}
+
+.fc .resource-label-wrap > span {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc .resource-label-wrap > .resource-edit-btn {
+  position: absolute;
+  right: 0;
+  flex-shrink: 0;
 }
 
 .fc .resource-edit-btn {
@@ -492,6 +541,9 @@ body {
   font-weight: 700;
   color: inherit;
   white-space: nowrap;
+  display: block;
+  width: 100%;
+  text-align: center;
 }
 
 .fc .timeline-event-text.is-truncated {
@@ -532,7 +584,7 @@ body {
 .fc .summary-total-event {
   border: 0;
   border-radius: 0;
-  background: var(--summary-bg) !important;
+  background: transparent !important;
   color: var(--summary-text) !important;
   inset-inline: 0 !important;
   box-shadow: none;

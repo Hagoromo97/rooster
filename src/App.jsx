@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import interactionPlugin from '@fullcalendar/interaction';
 import resourceTimelinePlugin from '@fullcalendar/resource-timeline';
-import { useTheme } from './components/theme-provider';
+import { ModeToggle } from './components/mode-toggle';
 import { apiClient } from './lib/api';
 
 const STORAGE_KEYS = {
@@ -18,8 +18,19 @@ const INIT_DRIVERS = [];
 const EVENT_LABEL_TRUNCATE_LIMIT = 12;
 const API_LOADING_TIMEOUT = 5000;
 
-const SUMMARY_RESOURCE_ID = 'summary-shift-am';
 const SUMMARY_RESOURCE_GROUP = 'Summary';
+const SHIFT_SUMMARY_CONFIG = [
+  {
+    label: 'Shift AM',
+    displayLabel: 'Shift Am',
+    resourceId: 'summary-shift-am',
+  },
+  {
+    label: 'Shift PM',
+    displayLabel: 'Shift Pm',
+    resourceId: 'summary-shift-pm',
+  },
+];
 
 const EMPTY_ROUTE = { title: '', group: '' };
 const EMPTY_GROUP = { name: '' };
@@ -75,9 +86,18 @@ function getTruncatedEventLabel(value) {
   return `${cleanValue.slice(0, 3)}..........`;
 }
 
+function extractRouteGroupNames(values) {
+  if (!Array.isArray(values)) return [];
+  return values
+    .map((item) => {
+      if (typeof item === 'string') return item.trim();
+      if (item && typeof item.name === 'string') return item.name.trim();
+      return '';
+    })
+    .filter(Boolean);
+}
+
 export default function App() {
-  const SHIFT_AM_LABEL = 'Shift AM';
-  const { resolvedTheme, toggleTheme } = useTheme();
   const [isEditMode, setIsEditMode] = useState(false);
   const [navMenuOpen, setNavMenuOpen] = useState(false);
   const [currentTitle, setCurrentTitle] = useState('');
@@ -88,6 +108,7 @@ export default function App() {
   const [resources, setResources] = useState(INIT_RESOURCES);
   const [events, setEvents]       = useState(INIT_EVENTS);
   const [drivers, setDrivers] = useState(INIT_DRIVERS);
+  const [savedRouteGroups, setSavedRouteGroups] = useState(['General']);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -132,14 +153,19 @@ export default function App() {
     async function loadData() {
       try {
         setIsLoading(true);
-        const [resData, evData, drvData] = await Promise.all([
+        const [resData, evData, drvData, groupData] = await Promise.all([
           apiClient.fetchResources().catch(() => []),
           apiClient.fetchEvents().catch(() => []),
           apiClient.fetchDrivers().catch(() => []),
+          apiClient.fetchRouteGroups().catch(() => []),
         ]);
         setResources(resData || INIT_RESOURCES);
         setEvents(evData || INIT_EVENTS);
         setDrivers(drvData || INIT_DRIVERS);
+        setSavedRouteGroups((prev) => {
+          const next = ['General', ...extractRouteGroupNames(groupData)];
+          return Array.from(new Set(next.map((name) => name.trim()).filter(Boolean)));
+        });
         setLoadError(null);
       } catch (error) {
         console.warn('Failed to load from API, using fallback:', error);
@@ -147,6 +173,7 @@ export default function App() {
         setResources(INIT_RESOURCES);
         setEvents(INIT_EVENTS);
         setDrivers(INIT_DRIVERS);
+        setSavedRouteGroups(['General']);
       } finally {
         setIsLoading(false);
       }
@@ -288,7 +315,19 @@ export default function App() {
       });
       return updated;
     });
+    setSavedRouteGroups((prev) => prev.map((groupName) => (
+      normalizeName(groupName) === normalizeName(editingGroupName) ? name : groupName
+    )));
+    apiClient.updateRouteGroup(editingGroupName, name).catch(() => {});
     cancelGroupEdit();
+  }
+
+  function saveGroup() {
+    const name = groupForm.name.trim();
+    if (!name || groupNameExists) return;
+    setSavedRouteGroups((prev) => [...prev, name]);
+    apiClient.createRouteGroup(name).catch(() => {});
+    setGroupForm(EMPTY_GROUP);
   }
 
   function openGroupDeleteDialog(groupName) {
@@ -303,6 +342,7 @@ export default function App() {
 
   function deleteGroup() {
     if (!groupDeleteName || normalizeName(groupDeleteName) === normalizeName('General')) return;
+    setSavedRouteGroups((prev) => prev.filter((groupName) => normalizeName(groupName) !== normalizeName(groupDeleteName)));
     setResources((prev) => {
       const updated = prev.map((route) => (
         normalizeName(getRouteGroupName(route)) === normalizeName(groupDeleteName)
@@ -315,6 +355,7 @@ export default function App() {
         .forEach((route) => apiClient.updateResource(route).catch(() => {}));
       return updated;
     });
+    apiClient.deleteRouteGroup(groupDeleteName).catch(() => {});
     if (normalizeName(editingGroupName) === normalizeName(groupDeleteName)) {
       cancelGroupEdit();
     }
@@ -649,9 +690,32 @@ export default function App() {
     routeForm.group.trim() !== initialRouteForm.group.trim()
   );
   const routeEditSaveEnabled = Boolean(editingRouteId && routeForm.title.trim() && routeEditChanged);
-  const routeGroups = Array.from(new Set(resources.map((route) => getRouteGroupName(route))));
+  const routeGroups = useMemo(() => {
+    const combined = [
+      'General',
+      ...savedRouteGroups,
+      ...resources.map((route) => getRouteGroupName(route)),
+    ];
+
+    const uniqueGroups = [];
+    combined.forEach((name) => {
+      const trimmedName = typeof name === 'string' ? name.trim() : '';
+      if (!trimmedName) return;
+      if (uniqueGroups.some((groupName) => normalizeName(groupName) === normalizeName(trimmedName))) return;
+      uniqueGroups.push(trimmedName);
+    });
+
+    const generalIndex = uniqueGroups.findIndex((groupName) => normalizeName(groupName) === normalizeName('General'));
+    if (generalIndex > 0) {
+      const [general] = uniqueGroups.splice(generalIndex, 1);
+      uniqueGroups.unshift(general);
+    }
+
+    return uniqueGroups;
+  }, [resources, savedRouteGroups]);
   const groupNameExists = routeGroups.some((groupName) => normalizeName(groupName) === normalizeName(groupForm.name));
   const groupEditChanged = normalizeName(groupForm.name) !== normalizeName(initialGroupName);
+  const groupSaveEnabled = Boolean(!editingGroupName && groupForm.name.trim() && !groupNameExists);
   const groupEditSaveEnabled = Boolean(editingGroupName && groupForm.name.trim() && groupEditChanged && !groupNameExists);
   const driverNameExists = drivers.some((driver) => normalizeName(driver.name) === normalizeName(driverForm.name));
   const driverSaveEnabled = Boolean(driverForm.name.trim() && !driverNameExists);
@@ -695,16 +759,23 @@ export default function App() {
     return dateKeys;
   }, [visibleRange]);
 
-  const shiftAmDailyTotals = useMemo(() => {
-    const normalizedShiftName = normalizeName(SHIFT_AM_LABEL);
-    return visibleDateKeys.map((dateKey) => {
-      const total = events.filter((event) => (
-        normalizeName(event.title) === normalizedShiftName &&
-        isEventOnDate(event, dateKey)
-      )).length;
-      return { dateKey, total };
-    });
-  }, [events, visibleDateKeys]);
+  const shiftDailySummaries = useMemo(() => (
+    SHIFT_SUMMARY_CONFIG.map((shift) => {
+      const normalizedShiftName = normalizeName(shift.label);
+      const dailyTotals = visibleDateKeys.map((dateKey) => {
+        const total = events.filter((event) => (
+          normalizeName(event.title) === normalizedShiftName &&
+          isEventOnDate(event, dateKey)
+        )).length;
+        return { dateKey, total };
+      });
+
+      return {
+        ...shift,
+        dailyTotals,
+      };
+    })
+  ), [events, visibleDateKeys]);
 
   const calendarResources = useMemo(() => ([
     ...resources.map((resource) => ({
@@ -712,32 +783,34 @@ export default function App() {
       orderWeight: 0,
       isSummary: false,
     })),
-    {
-      id: SUMMARY_RESOURCE_ID,
-      title: `Total ${SHIFT_AM_LABEL}`,
+    ...SHIFT_SUMMARY_CONFIG.map((shift) => ({
+      id: shift.resourceId,
+      title: shift.displayLabel,
       group: SUMMARY_RESOURCE_GROUP,
       orderWeight: 1,
       isSummary: true,
-    },
+    })),
   ]), [resources]);
 
   const summaryEvents = useMemo(() => (
-    shiftAmDailyTotals.map(({ dateKey, total }) => ({
-      id: `summary-${dateKey}`,
-      resourceId: SUMMARY_RESOURCE_ID,
-      title: String(total),
-      start: `${dateKey}T07:00:00`,
-      end: `${dateKey}T20:00:00`,
-      color: '#6b7280',
-      editable: false,
-      startEditable: false,
-      durationEditable: false,
-      extendedProps: {
-        isSummary: true,
-        total,
-      },
-    }))
-  ), [shiftAmDailyTotals]);
+    shiftDailySummaries.flatMap((shift) => (
+      shift.dailyTotals.map(({ dateKey, total }) => ({
+        id: `summary-${shift.resourceId}-${dateKey}`,
+        resourceId: shift.resourceId,
+        title: String(total),
+        start: `${dateKey}T07:00:00`,
+        end: `${dateKey}T20:00:00`,
+        color: '#6b7280',
+        editable: false,
+        startEditable: false,
+        durationEditable: false,
+        extendedProps: {
+          isSummary: true,
+          total,
+        },
+      }))
+    ))
+  ), [shiftDailySummaries]);
 
   const calendarEvents = useMemo(() => ([...events, ...summaryEvents]), [events, summaryEvents]);
 
@@ -765,6 +838,7 @@ export default function App() {
           <strong className="brand-title">Timeline Scheduler</strong>
         </div>
         <div className="top-nav-actions" ref={navMenuRef}>
+          <ModeToggle />
           <button
             type="button"
             className={`theme-toggle menu-toggle${navMenuOpen ? ' is-active' : ''}`}
@@ -794,17 +868,6 @@ export default function App() {
                 onClick={openManageModal}
               >
                 Manage
-              </button>
-              <button
-                type="button"
-                className="nav-menu-item"
-                role="menuitem"
-                onClick={() => {
-                  toggleTheme();
-                  setNavMenuOpen(false);
-                }}
-              >
-                {resolvedTheme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
               </button>
             </div>
           ) : null}
@@ -870,17 +933,28 @@ export default function App() {
                 onChange={(e) => setGroupForm({ name: e.target.value })}
               />
               <div className="driver-inline-actions">
-                <button
-                  type="button"
-                  className="modal-btn save"
-                  onClick={saveGroupEdit}
-                  disabled={!groupEditSaveEnabled}
-                >
-                  Save Group Name
-                </button>
                 {editingGroupName ? (
-                  <button type="button" className="modal-btn cancel" onClick={cancelGroupEdit}>Cancel Edit</button>
-                ) : null}
+                  <>
+                    <button
+                      type="button"
+                      className="modal-btn save"
+                      onClick={saveGroupEdit}
+                      disabled={!groupEditSaveEnabled}
+                    >
+                      Save Group Name
+                    </button>
+                    <button type="button" className="modal-btn cancel" onClick={cancelGroupEdit}>Cancel Edit</button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="modal-btn save"
+                    onClick={saveGroup}
+                    disabled={!groupSaveEnabled}
+                  >
+                    Add Group
+                  </button>
+                )}
               </div>
 
               <div className="driver-list-wrap">
@@ -1329,7 +1403,7 @@ export default function App() {
               ) : null}
             </div>
           )}
-          resourceAreaWidth="13%"
+          resourceAreaWidth="17%"
           resourceGroupField="group"
           resourceOrder="orderWeight,group,title"
           slotMinTime="07:00:00"
@@ -1345,7 +1419,8 @@ export default function App() {
           eventClassNames={(arg) => (arg.event.extendedProps?.isSummary ? ['summary-total-event'] : [])}
           eventContent={(arg) => {
             if (arg.event.extendedProps?.isSummary) {
-              return <span className="summary-total-event-text">{arg.event.extendedProps.total}</span>;
+              const summaryTotal = Number(arg.event.extendedProps.total) || 0;
+              return <span className="summary-total-event-text">{summaryTotal > 0 ? summaryTotal : ''}</span>;
             }
             const truncated = isEventLabelTruncated(arg.event.title);
             return (

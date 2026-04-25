@@ -27,6 +27,15 @@ async function initializeDatabase() {
       )
     `);
 
+    // Route groups table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS route_groups (
+        name TEXT PRIMARY KEY,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Events table
     await client.query(`
       CREATE TABLE IF NOT EXISTS events (
@@ -59,6 +68,23 @@ async function initializeDatabase() {
 
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_events_start_time ON events(start_time)
+    `);
+
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_route_groups_name_lower ON route_groups(LOWER(name))
+    `);
+
+    await client.query(`
+      INSERT INTO route_groups (name)
+      VALUES ('General')
+      ON CONFLICT DO NOTHING
+    `);
+
+    await client.query(`
+      INSERT INTO route_groups (name)
+      SELECT DISTINCT COALESCE(NULLIF(TRIM(group_name), ''), 'General')
+      FROM resources
+      ON CONFLICT DO NOTHING
     `);
 
     console.log('Database initialized successfully');

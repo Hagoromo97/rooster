@@ -19,6 +19,42 @@ export const apiClient = {
     return res.json();
   },
 
+  async fetchRouteGroups() {
+    const res = await fetch(`${API_BASE}/route-groups`);
+    if (!res.ok) throw new Error('Failed to fetch route groups');
+    return res.json();
+  },
+
+  async createRouteGroup(name) {
+    const res = await fetch(`${API_BASE}/route-groups`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) throw new Error('Failed to create route group');
+    return res.json();
+  },
+
+  async updateRouteGroup(name, newName) {
+    const res = await fetch(`${API_BASE}/route-groups`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, newName }),
+    });
+    if (!res.ok) throw new Error('Failed to update route group');
+    return res.json();
+  },
+
+  async deleteRouteGroup(name) {
+    const res = await fetch(`${API_BASE}/route-groups`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) throw new Error('Failed to delete route group');
+    return res.json();
+  },
+
   async createResource(resource) {
     const res = await fetch(`${API_BASE}/resources`, {
       method: 'POST',
