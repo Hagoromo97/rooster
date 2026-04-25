@@ -4,6 +4,10 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/api/resources", "destination": "/api/resources.js" },
+    { "source": "/api/events", "destination": "/api/events.js" },
+    { "source": "/api/drivers", "destination": "/api/drivers.js" },
+    { "source": "/api/init-db", "destination": "/api/init-db.js" },
     {
       "source": "/(.*)",
       "destination": "/index.html"

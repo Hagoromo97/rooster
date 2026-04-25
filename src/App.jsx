@@ -3,6 +3,7 @@ import FullCalendar from '@fullcalendar/react';
 import interactionPlugin from '@fullcalendar/interaction';
 import resourceTimelinePlugin from '@fullcalendar/resource-timeline';
 import { useTheme } from './components/theme-provider';
+import { apiClient } from './lib/api';
 
 const STORAGE_KEYS = {
   resources: 'rooster.resources',
@@ -10,47 +11,19 @@ const STORAGE_KEYS = {
   drivers: 'rooster.drivers',
 };
 
+const INIT_RESOURCES = [];
+const INIT_EVENTS = [];
+const INIT_DRIVERS = [];
+
 const EVENT_LABEL_TRUNCATE_LIMIT = 12;
+const API_LOADING_TIMEOUT = 5000;
 
 const SUMMARY_RESOURCE_ID = 'summary-shift-am';
 const SUMMARY_RESOURCE_GROUP = 'Summary';
 
-const INIT_RESOURCES = [
-  { id: 'room-a', title: 'Room A', group: 'Group A' },
-  { id: 'room-b', title: 'Room B', group: 'Group A' },
-  { id: 'room-c', title: 'Room C', group: 'Group B' },
-  { id: 'room-d', title: 'Room D', group: 'Group B' },
-];
-
-const INIT_EVENTS = [
-  { id: 'evt-1', resourceId: 'room-a', title: 'Meeting Tim Produk', start: '2026-04-24T09:00:00', end: '2026-04-24T11:00:00' },
-  { id: 'evt-2', resourceId: 'room-b', title: 'Sprint Planning',    start: '2026-04-24T10:00:00', end: '2026-04-24T12:30:00' },
-  { id: 'evt-3', resourceId: 'room-c', title: 'Client Review',      start: '2026-04-25T13:00:00', end: '2026-04-25T15:00:00' },
-  { id: 'evt-4', resourceId: 'room-d', title: 'Workshop Internal',  start: '2026-04-26T08:30:00', end: '2026-04-26T11:30:00' },
-];
-
 const EMPTY_ROUTE = { title: '', group: '' };
 const EMPTY_GROUP = { name: '' };
 const EMPTY_EVENT = { title: '', resourceId: '', start: '', end: '', color: '#3b82f6' };
-const INIT_DRIVERS = [
-  { id: 'drv-1', name: 'Ahmad' },
-  { id: 'drv-2', name: 'Siti' },
-  { id: 'drv-3', name: 'Daniel' },
-];
-
-function readStoredValue(key, fallback) {
-  if (typeof window === 'undefined') return fallback;
-
-  const rawValue = window.localStorage.getItem(key);
-  if (!rawValue) return fallback;
-
-  try {
-    const parsedValue = JSON.parse(rawValue);
-    return Array.isArray(parsedValue) ? parsedValue : fallback;
-  } catch {
-    return fallback;
-  }
-}
 
 function toDateKey(value) {
   if (!value) return '';
@@ -110,9 +83,11 @@ export default function App() {
   const [currentView, setCurrentView] = useState('resourceTimelineWeek');
   const calendarRef = useRef(null);
 
-  const [resources, setResources] = useState(() => readStoredValue(STORAGE_KEYS.resources, INIT_RESOURCES));
-  const [events, setEvents]       = useState(() => readStoredValue(STORAGE_KEYS.events, INIT_EVENTS));
-  const [drivers, setDrivers] = useState(() => readStoredValue(STORAGE_KEYS.drivers, INIT_DRIVERS));
+  const [resources, setResources] = useState(INIT_RESOURCES);
+  const [events, setEvents]       = useState(INIT_EVENTS);
+  const [drivers, setDrivers] = useState(INIT_DRIVERS);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   // modals
   const [routeModal, setRouteModal] = useState(false);
@@ -150,17 +125,32 @@ export default function App() {
   const [visibleRange, setVisibleRange] = useState({ start: '', end: '' });
   const [eventNamePopover, setEventNamePopover] = useState({ open: false, text: '', x: 0, y: 0 });
 
+  // Fetch data from API on component mount
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEYS.resources, JSON.stringify(resources));
-  }, [resources]);
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEYS.events, JSON.stringify(events));
-  }, [events]);
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEYS.drivers, JSON.stringify(drivers));
-  }, [drivers]);
+    async function loadData() {
+      try {
+        setIsLoading(true);
+        const [resData, evData, drvData] = await Promise.all([
+          apiClient.fetchResources().catch(() => []),
+          apiClient.fetchEvents().catch(() => []),
+          apiClient.fetchDrivers().catch(() => []),
+        ]);
+        setResources(resData || INIT_RESOURCES);
+        setEvents(evData || INIT_EVENTS);
+        setDrivers(drvData || INIT_DRIVERS);
+        setLoadError(null);
+      } catch (error) {
+        console.warn('Failed to load from API, using fallback:', error);
+        setLoadError(error.message);
+        setResources(INIT_RESOURCES);
+        setEvents(INIT_EVENTS);
+        setDrivers(INIT_DRIVERS);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, []);
 
   function addDaysToDate(startDate, daysToAdd) {
     if (!startDate) return '';
@@ -254,11 +244,20 @@ export default function App() {
       normalizeName(groupName) === normalizeName(name)
     ));
     if (duplicate) return;
-    setResources((prev) => prev.map((route) => (
-      normalizeName(getRouteGroupName(route)) === normalizeName(editingGroupName)
-        ? { ...route, group: name }
-        : route
-    )));
+    setResources((prev) => {
+      const updated = prev.map((route) => (
+        normalizeName(getRouteGroupName(route)) === normalizeName(editingGroupName)
+          ? { ...route, group: name }
+          : route
+      ));
+      updated.forEach((route) => {
+        if (normalizeName(getRouteGroupName(route)) === normalizeName(name) &&
+            normalizeName(getRouteGroupName(prev.find((r) => r.id === route.id) || {})) === normalizeName(editingGroupName)) {
+          apiClient.updateResource(route).catch(() => {});
+        }
+      });
+      return updated;
+    });
     cancelGroupEdit();
   }
 
@@ -274,11 +273,18 @@ export default function App() {
 
   function deleteGroup() {
     if (!groupDeleteName || normalizeName(groupDeleteName) === normalizeName('General')) return;
-    setResources((prev) => prev.map((route) => (
-      normalizeName(getRouteGroupName(route)) === normalizeName(groupDeleteName)
-        ? { ...route, group: 'General' }
-        : route
-    )));
+    setResources((prev) => {
+      const updated = prev.map((route) => (
+        normalizeName(getRouteGroupName(route)) === normalizeName(groupDeleteName)
+          ? { ...route, group: 'General' }
+          : route
+      ));
+      updated
+        .filter((route) => normalizeName(getRouteGroupName(route)) === normalizeName('General') &&
+          normalizeName(getRouteGroupName(prev.find((r) => r.id === route.id) || {})) === normalizeName(groupDeleteName))
+        .forEach((route) => apiClient.updateResource(route).catch(() => {}));
+      return updated;
+    });
     if (normalizeName(editingGroupName) === normalizeName(groupDeleteName)) {
       cancelGroupEdit();
     }
@@ -301,7 +307,9 @@ export default function App() {
     if (!name) return;
     const exists = drivers.some((driver) => normalizeName(driver.name) === normalizeName(name));
     if (exists) return;
-    setDrivers((prev) => [...prev, { id: `drv-${Date.now()}`, name }]);
+    const newDriver = { id: `drv-${Date.now()}`, name };
+    setDrivers((prev) => [...prev, newDriver]);
+    apiClient.createDriver(newDriver).catch(() => {});
     setDriverForm({ name: '' });
   }
 
@@ -312,12 +320,21 @@ export default function App() {
       driver.id !== editingDriverId && normalizeName(driver.name) === normalizeName(name)
     ));
     if (exists) return;
+    const oldName = drivers.find((driver) => driver.id === editingDriverId)?.name || '';
     setDrivers((prev) => prev.map((driver) => driver.id === editingDriverId ? { ...driver, name } : driver));
-    setEvents((prev) => prev.map((event) => (
-      normalizeName(event.title) === normalizeName(drivers.find((driver) => driver.id === editingDriverId)?.name || '')
-        ? { ...event, title: name }
-        : event
-    )));
+    setEvents((prev) => {
+      const updated = prev.map((event) => (
+        normalizeName(event.title) === normalizeName(oldName)
+          ? { ...event, title: name }
+          : event
+      ));
+      updated
+        .filter((event) => normalizeName(event.title) === normalizeName(name) &&
+          normalizeName(prev.find((e) => e.id === event.id)?.title || '') === normalizeName(oldName))
+        .forEach((event) => apiClient.updateEvent(event).catch(() => {}));
+      return updated;
+    });
+    apiClient.updateDriver({ id: editingDriverId, name }).catch(() => {});
     setEditingDriverId(null);
     setDriverForm({ name: '' });
   }
@@ -342,8 +359,13 @@ export default function App() {
     const deletingDriver = drivers.find((driver) => driver.id === driverDeleteId);
     setDrivers((prev) => prev.filter((driver) => driver.id !== driverDeleteId));
     if (deletingDriver) {
-      setEvents((prev) => prev.filter((event) => normalizeName(event.title) !== normalizeName(deletingDriver.name)));
+      setEvents((prev) => {
+        const toDelete = prev.filter((event) => normalizeName(event.title) === normalizeName(deletingDriver.name));
+        toDelete.forEach((event) => apiClient.deleteEvent(event.id).catch(() => {}));
+        return prev.filter((event) => normalizeName(event.title) !== normalizeName(deletingDriver.name));
+      });
     }
+    apiClient.deleteDriver(driverDeleteId).catch(() => {});
     if (editingDriverId === driverDeleteId) {
       cancelDriverEdit();
     }
@@ -358,11 +380,15 @@ export default function App() {
   function saveRoute() {
     if (!routeForm.title.trim()) return;
     const id = 'route-' + Date.now();
-    setResources((prev) => [...prev, {
+    const newRoute = {
       id,
       title: routeForm.title.trim(),
       group: routeForm.group.trim() || 'General',
-    }]);
+    };
+    apiClient.createResource(newRoute).catch(() => {
+      setResources((prev) => [...prev, newRoute]);
+    });
+    setResources((prev) => [...prev, newRoute]);
     closeRouteModal();
   }
 
@@ -382,13 +408,15 @@ export default function App() {
 
   function saveRouteEdit() {
     if (!editingRouteId || !routeForm.title.trim()) return;
+    const updatedRoute = {
+      id: editingRouteId,
+      title: routeForm.title.trim(),
+      group: routeForm.group.trim() || 'General',
+    };
     setResources((prev) => prev.map((route) => route.id === editingRouteId
-      ? {
-        ...route,
-        title: routeForm.title.trim(),
-        group: routeForm.group.trim() || 'General',
-      }
+      ? { ...route, ...updatedRoute }
       : route));
+    apiClient.updateResource(updatedRoute).catch(() => {});
     closeRouteEditModal();
   }
 
@@ -407,6 +435,7 @@ export default function App() {
     if (!routeDeleteId) return;
     setResources((prev) => prev.filter((route) => route.id !== routeDeleteId));
     setEvents((prev) => prev.filter((event) => event.resourceId !== routeDeleteId));
+    apiClient.deleteResource(routeDeleteId).catch(() => {});
     closeRouteDeleteDialog();
     if (editingRouteId === routeDeleteId) {
       closeRouteEditModal();
@@ -421,10 +450,14 @@ export default function App() {
     if (!eventForm.title.trim() || !eventForm.resourceId || !eventForm.start || !finalEnd) return;
     const normalizedEventName = normalizeName(eventForm.title);
     if (!drivers.some((driver) => normalizeName(driver.name) === normalizedEventName)) {
-      setDrivers((prev) => [...prev, { id: `drv-${Date.now()}`, name: eventForm.title.trim() }]);
+      const newDriver = { id: `drv-${Date.now()}`, name: eventForm.title.trim() };
+      setDrivers((prev) => [...prev, newDriver]);
+      apiClient.createDriver(newDriver).catch(() => {});
     }
     const id = 'evt-' + Date.now();
-    setEvents((prev) => [...prev, { id, ...eventForm, end: finalEnd }]);
+    const newEvent = { id, ...eventForm, end: finalEnd };
+    setEvents((prev) => [...prev, newEvent]);
+    apiClient.createEvent(newEvent).catch(() => {});
     setEventModal(false);
     setEventForm(EMPTY_EVENT);
     setEventDateMode('custom');
@@ -500,14 +533,20 @@ export default function App() {
     if (!editForm.title.trim() || !editForm.resourceId || !editForm.start || !finalEnd) return;
     const normalizedEditName = normalizeName(editForm.title);
     if (!drivers.some((driver) => normalizeName(driver.name) === normalizedEditName)) {
-      setDrivers((prev) => [...prev, { id: `drv-${Date.now()}`, name: editForm.title.trim() }]);
+      const newDriver = { id: `drv-${Date.now()}`, name: editForm.title.trim() };
+      setDrivers((prev) => [...prev, newDriver]);
+      apiClient.createDriver(newDriver).catch(() => {});
     }
-    setEvents((prev) => prev.map((e) => e.id === editingId ? { ...e, ...editForm, end: finalEnd } : e));
+    const updatedEvent = { id: editingId, ...editForm, end: finalEnd };
+    setEvents((prev) => prev.map((e) => e.id === editingId ? updatedEvent : e));
+    apiClient.updateEvent(updatedEvent).catch(() => {});
     closeEditModal();
   }
 
   function deleteEvent() {
-    setEvents((prev) => prev.filter((e) => e.id !== editingId));
+    const idToDelete = editingId;
+    setEvents((prev) => prev.filter((e) => e.id !== idToDelete));
+    apiClient.deleteEvent(idToDelete).catch(() => {});
     closeEditModal();
   }
 
