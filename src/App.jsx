@@ -1,8 +1,14 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import interactionPlugin from '@fullcalendar/interaction';
 import resourceTimelinePlugin from '@fullcalendar/resource-timeline';
 import { useTheme } from './components/theme-provider';
+
+const STORAGE_KEYS = {
+  resources: 'rooster.resources',
+  events: 'rooster.events',
+  drivers: 'rooster.drivers',
+};
 
 const INIT_RESOURCES = [
   { id: 'room-a', title: 'Room A', group: 'Group A' },
@@ -27,6 +33,20 @@ const INIT_DRIVERS = [
   { id: 'drv-3', name: 'Daniel' },
 ];
 
+function readStoredValue(key, fallback) {
+  if (typeof window === 'undefined') return fallback;
+
+  const rawValue = window.localStorage.getItem(key);
+  if (!rawValue) return fallback;
+
+  try {
+    const parsedValue = JSON.parse(rawValue);
+    return Array.isArray(parsedValue) ? parsedValue : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export default function App() {
   const { resolvedTheme, toggleTheme } = useTheme();
   const [isEditMode, setIsEditMode] = useState(true);
@@ -34,9 +54,9 @@ export default function App() {
   const [currentView, setCurrentView] = useState('resourceTimelineWeek');
   const calendarRef = useRef(null);
 
-  const [resources, setResources] = useState(INIT_RESOURCES);
-  const [events, setEvents]       = useState(INIT_EVENTS);
-  const [drivers, setDrivers] = useState(INIT_DRIVERS);
+  const [resources, setResources] = useState(() => readStoredValue(STORAGE_KEYS.resources, INIT_RESOURCES));
+  const [events, setEvents]       = useState(() => readStoredValue(STORAGE_KEYS.events, INIT_EVENTS));
+  const [drivers, setDrivers] = useState(() => readStoredValue(STORAGE_KEYS.drivers, INIT_DRIVERS));
 
   // modals
   const [routeModal, setRouteModal] = useState(false);
@@ -71,6 +91,18 @@ export default function App() {
   const [editDateMode, setEditDateMode] = useState('custom');
   const [editNameMode, setEditNameMode] = useState('driver');
   const [editDurationDays, setEditDurationDays] = useState('');
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEYS.resources, JSON.stringify(resources));
+  }, [resources]);
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEYS.events, JSON.stringify(events));
+  }, [events]);
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEYS.drivers, JSON.stringify(drivers));
+  }, [drivers]);
 
   function addDaysToDate(startDate, daysToAdd) {
     if (!startDate) return '';
