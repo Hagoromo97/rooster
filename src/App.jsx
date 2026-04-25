@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import interactionPlugin from '@fullcalendar/interaction';
 import resourceTimelinePlugin from '@fullcalendar/resource-timeline';
@@ -9,6 +9,11 @@ const STORAGE_KEYS = {
   events: 'rooster.events',
   drivers: 'rooster.drivers',
 };
+
+const EVENT_LABEL_TRUNCATE_LIMIT = 12;
+
+const SUMMARY_RESOURCE_ID = 'summary-shift-am';
+const SUMMARY_RESOURCE_GROUP = 'Summary';
 
 const INIT_RESOURCES = [
   { id: 'room-a', title: 'Room A', group: 'Group A' },
@@ -47,7 +52,58 @@ function readStoredValue(key, fallback) {
   }
 }
 
+function toDateKey(value) {
+  if (!value) return '';
+  if (typeof value === 'string') {
+    const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    return match ? match[1] : '';
+  }
+  const parsedDate = new Date(value);
+  if (Number.isNaN(parsedDate.getTime())) return '';
+  const year = parsedDate.getFullYear();
+  const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+  const day = String(parsedDate.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function nextDateKey(dateKey) {
+  const parsedDate = new Date(dateKey + 'T00:00:00');
+  if (Number.isNaN(parsedDate.getTime())) return dateKey;
+  parsedDate.setDate(parsedDate.getDate() + 1);
+  const year = parsedDate.getFullYear();
+  const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+  const day = String(parsedDate.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function isEventOnDate(event, dateKey) {
+  const startKey = toDateKey(event.start);
+  if (!startKey) return false;
+  const endCandidate = toDateKey(event.end);
+  if (!endCandidate || endCandidate <= startKey) {
+    return dateKey === startKey;
+  }
+  return dateKey >= startKey && dateKey < endCandidate;
+}
+
+function getTrimmedText(value) {
+  if (typeof value !== 'string') return '';
+  return value.trim();
+}
+
+function isEventLabelTruncated(value) {
+  return getTrimmedText(value).length > EVENT_LABEL_TRUNCATE_LIMIT;
+}
+
+function getTruncatedEventLabel(value) {
+  const cleanValue = getTrimmedText(value);
+  if (!cleanValue) return '';
+  if (!isEventLabelTruncated(cleanValue)) return cleanValue;
+  return `${cleanValue.slice(0, 3)}..........`;
+}
+
 export default function App() {
+  const SHIFT_AM_LABEL = 'Shift AM';
   const { resolvedTheme, toggleTheme } = useTheme();
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentTitle, setCurrentTitle] = useState('');
@@ -91,6 +147,8 @@ export default function App() {
   const [editDateMode, setEditDateMode] = useState('custom');
   const [editNameMode, setEditNameMode] = useState('driver');
   const [editDurationDays, setEditDurationDays] = useState('');
+  const [visibleRange, setVisibleRange] = useState({ start: '', end: '' });
+  const [eventNamePopover, setEventNamePopover] = useState({ open: false, text: '', x: 0, y: 0 });
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEYS.resources, JSON.stringify(resources));
@@ -456,6 +514,10 @@ export default function App() {
   function onDatesSet(info) {
     setCurrentTitle(info.view.title);
     setCurrentView(info.view.type);
+    setVisibleRange({
+      start: toDateKey(info.start),
+      end: toDateKey(info.end),
+    });
   }
 
   function goPrev() {
@@ -477,6 +539,30 @@ export default function App() {
   function toggleView() {
     const nextView = currentView === 'resourceTimelineWeek' ? 'resourceTimelineMonth' : 'resourceTimelineWeek';
     changeView(nextView);
+  }
+
+  function closeEventNamePopover() {
+    setEventNamePopover({ open: false, text: '', x: 0, y: 0 });
+  }
+
+  function openEventNamePopover(title, mouseEvent) {
+    const cleanTitle = getTrimmedText(title);
+    if (!cleanTitle || !mouseEvent) return;
+
+    const popoverWidth = 270;
+    const popoverHeight = 92;
+    const offset = 12;
+    const maxX = Math.max(offset, window.innerWidth - popoverWidth - offset);
+    const maxY = Math.max(offset, window.innerHeight - popoverHeight - offset);
+    const x = Math.min(mouseEvent.clientX + offset, maxX);
+    const y = Math.min(mouseEvent.clientY + offset, maxY);
+
+    setEventNamePopover({
+      open: true,
+      text: cleanTitle,
+      x,
+      y,
+    });
   }
 
   const eventAutoEndDate = eventDateMode === 'duration'
@@ -527,6 +613,81 @@ export default function App() {
   );
   const editSaveEnabled = editBaseValid && editChanged;
 
+  const visibleDateKeys = useMemo(() => {
+    if (!visibleRange.start || !visibleRange.end || visibleRange.start >= visibleRange.end) {
+      return [];
+    }
+    const dateKeys = [];
+    let cursor = visibleRange.start;
+    while (cursor < visibleRange.end) {
+      dateKeys.push(cursor);
+      cursor = nextDateKey(cursor);
+    }
+    return dateKeys;
+  }, [visibleRange]);
+
+  const shiftAmDailyTotals = useMemo(() => {
+    const normalizedShiftName = normalizeName(SHIFT_AM_LABEL);
+    return visibleDateKeys.map((dateKey) => {
+      const total = events.filter((event) => (
+        normalizeName(event.title) === normalizedShiftName &&
+        isEventOnDate(event, dateKey)
+      )).length;
+      return { dateKey, total };
+    });
+  }, [events, visibleDateKeys]);
+
+  const calendarResources = useMemo(() => ([
+    ...resources.map((resource) => ({
+      ...resource,
+      orderWeight: 0,
+      isSummary: false,
+    })),
+    {
+      id: SUMMARY_RESOURCE_ID,
+      title: `Total ${SHIFT_AM_LABEL}`,
+      group: SUMMARY_RESOURCE_GROUP,
+      orderWeight: 1,
+      isSummary: true,
+    },
+  ]), [resources]);
+
+  const summaryEvents = useMemo(() => (
+    shiftAmDailyTotals.map(({ dateKey, total }) => ({
+      id: `summary-${dateKey}`,
+      resourceId: SUMMARY_RESOURCE_ID,
+      title: String(total),
+      start: `${dateKey}T07:00:00`,
+      end: `${dateKey}T20:00:00`,
+      color: '#6b7280',
+      editable: false,
+      startEditable: false,
+      durationEditable: false,
+      extendedProps: {
+        isSummary: true,
+        total,
+      },
+    }))
+  ), [shiftAmDailyTotals]);
+
+  const calendarEvents = useMemo(() => ([...events, ...summaryEvents]), [events, summaryEvents]);
+
+  useEffect(() => {
+    if (!eventNamePopover.open) return undefined;
+
+    const onPointerDown = () => closeEventNamePopover();
+    const onEscape = (event) => {
+      if (event.key === 'Escape') closeEventNamePopover();
+    };
+
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onEscape);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onEscape);
+    };
+  }, [eventNamePopover.open]);
+
   return (
     <main className="app-shell">
       <nav className="top-nav">
@@ -549,7 +710,7 @@ export default function App() {
       </nav>
 
       <header className="app-header">
-        <h1>FullCalendar Timeline React</h1>
+        <h1>Daily Trip</h1>
         <span className="subtitle">Resource scheduling example using a timeline view</span>
       </header>
 
@@ -1045,8 +1206,8 @@ export default function App() {
           resourceAreaHeaderContent="Route"
           resourceLabelContent={(arg) => (
             <div className="resource-label-wrap">
-              <span>{arg.resource.title}</span>
-              {isEditMode ? (
+              <span className={arg.resource.extendedProps?.isSummary ? 'resource-summary-label' : ''}>{arg.resource.title}</span>
+              {isEditMode && !arg.resource.extendedProps?.isSummary ? (
                 <button
                   type="button"
                   className="resource-edit-btn"
@@ -1071,17 +1232,37 @@ export default function App() {
           )}
           resourceAreaWidth="13%"
           resourceGroupField="group"
-          resourceOrder="group,title"
+          resourceOrder="orderWeight,group,title"
           slotMinTime="07:00:00"
           slotMaxTime="20:00:00"
           slotDuration="00:30:00"
-          resources={resources}
-          events={events}
+          eventMinWidth={70}
+          displayEventTime={false}
+          resources={calendarResources}
+          events={calendarEvents}
 
           headerToolbar={false}
           datesSet={onDatesSet}
+          eventClassNames={(arg) => (arg.event.extendedProps?.isSummary ? ['summary-total-event'] : [])}
+          eventContent={(arg) => {
+            if (arg.event.extendedProps?.isSummary) {
+              return <span className="summary-total-event-text">{arg.event.extendedProps.total}</span>;
+            }
+            const truncated = isEventLabelTruncated(arg.event.title);
+            return (
+              <span className={`timeline-event-text${truncated ? ' is-truncated' : ''}`}>
+                {getTruncatedEventLabel(arg.event.title)}
+              </span>
+            );
+          }}
           eventClick={(clickInfo) => {
-            if (!isEditMode) return;
+            if (clickInfo.event.extendedProps?.isSummary) return;
+            if (!isEditMode) {
+              if (isEventLabelTruncated(clickInfo.event.title)) {
+                openEventNamePopover(clickInfo.event.title, clickInfo.jsEvent);
+              }
+              return;
+            }
             openEditModal(clickInfo);
           }}
           views={{
@@ -1098,6 +1279,19 @@ export default function App() {
           }}
           height="auto"
         />
+
+        {eventNamePopover.open ? (
+          <div
+            className="event-name-popover"
+            style={{ left: `${eventNamePopover.x}px`, top: `${eventNamePopover.y}px` }}
+            onPointerDown={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-label="Full event name"
+          >
+            <strong className="event-name-popover-title">Full Name</strong>
+            <span className="event-name-popover-text">{eventNamePopover.text}</span>
+          </div>
+        ) : null}
       </section>
     </main>
   );
