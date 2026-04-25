@@ -79,9 +79,11 @@ export default function App() {
   const SHIFT_AM_LABEL = 'Shift AM';
   const { resolvedTheme, toggleTheme } = useTheme();
   const [isEditMode, setIsEditMode] = useState(false);
+  const [navMenuOpen, setNavMenuOpen] = useState(false);
   const [currentTitle, setCurrentTitle] = useState('');
   const [currentView, setCurrentView] = useState('resourceTimelineWeek');
   const calendarRef = useRef(null);
+  const navMenuRef = useRef(null);
 
   const [resources, setResources] = useState(INIT_RESOURCES);
   const [events, setEvents]       = useState(INIT_EVENTS);
@@ -152,6 +154,29 @@ export default function App() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (!navMenuOpen) return undefined;
+
+    const onPointerDown = (event) => {
+      if (!navMenuRef.current?.contains(event.target)) {
+        setNavMenuOpen(false);
+      }
+    };
+
+    const onEscape = (event) => {
+      if (event.key === 'Escape') {
+        setNavMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onEscape);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onEscape);
+    };
+  }, [navMenuOpen]);
+
   function addDaysToDate(startDate, daysToAdd) {
     if (!startDate) return '';
     const safeDays = Math.max(1, Number(daysToAdd) || 1);
@@ -180,6 +205,10 @@ export default function App() {
     setIsEditMode((current) => !current);
   }
 
+  function toggleNavMenu() {
+    setNavMenuOpen((current) => !current);
+  }
+
   function openRouteModal() {
     setRouteForm(EMPTY_ROUTE);
     setRouteModal(true);
@@ -190,6 +219,7 @@ export default function App() {
   }
 
   function openManageModal() {
+    setNavMenuOpen(false);
     setManageModal(true);
   }
 
@@ -734,17 +764,50 @@ export default function App() {
           <p className="eyebrow">Rooster</p>
           <strong className="brand-title">Timeline Scheduler</strong>
         </div>
-        <div className="top-nav-actions">
+        <div className="top-nav-actions" ref={navMenuRef}>
           <button
             type="button"
-            className={`theme-toggle${isEditMode ? ' is-active' : ''}`}
-            onClick={toggleEditMode}
+            className={`theme-toggle menu-toggle${navMenuOpen ? ' is-active' : ''}`}
+            onClick={toggleNavMenu}
+            aria-expanded={navMenuOpen}
+            aria-haspopup="menu"
           >
-            {isEditMode ? 'Edit Mode: On' : 'Edit Mode: Off'}
+            Menu ▾
           </button>
-          <button type="button" className="theme-toggle" onClick={toggleTheme}>
-            {resolvedTheme === 'light' ? 'Dark Mode' : 'Light Mode'}
-          </button>
+          {navMenuOpen ? (
+            <div className="nav-menu-dropdown" role="menu" aria-label="Header menu actions">
+              <button
+                type="button"
+                className={`nav-menu-item${isEditMode ? ' is-active' : ''}`}
+                role="menuitem"
+                onClick={() => {
+                  toggleEditMode();
+                  setNavMenuOpen(false);
+                }}
+              >
+                {isEditMode ? 'Edit Mode: On' : 'Edit Mode: Off'}
+              </button>
+              <button
+                type="button"
+                className="nav-menu-item"
+                role="menuitem"
+                onClick={openManageModal}
+              >
+                Manage
+              </button>
+              <button
+                type="button"
+                className="nav-menu-item"
+                role="menuitem"
+                onClick={() => {
+                  toggleTheme();
+                  setNavMenuOpen(false);
+                }}
+              >
+                {resolvedTheme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+              </button>
+            </div>
+          ) : null}
         </div>
       </nav>
 
@@ -763,9 +826,6 @@ export default function App() {
         <p className="calendar-title">{currentTitle}</p>
 
         <div className="calendar-control-group">
-          {isEditMode ? (
-            <button type="button" className="calendar-control-btn action-btn" onClick={openManageModal}>Manage</button>
-          ) : null}
           <button type="button" className="calendar-control-btn" onClick={toggleView}>
             {currentView === 'resourceTimelineWeek' ? 'Week' : 'Month'}
           </button>

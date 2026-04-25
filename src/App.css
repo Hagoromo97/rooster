@@ -8,45 +8,53 @@
 }
 
 .app-shell {
-  --bg-app: #ffffff;
-  --text-main: #111111;
-  --text-subtle: #555555;
-  --accent: #111111;
-  --accent-hover: #333333;
-  --header-bg: #f7f7f7;
-  --header-text: #111111;
-  --btn-bg: #111111;
-  --btn-bg-hover: #333333;
-  --btn-border: #111111;
-  --nav-bg: #ffffff;
-  --nav-border: #e0e0e0;
-  --toolbar-bg: #ffffff;
-  --toolbar-border: #e0e0e0;
-  --panel-bg: #ffffff;
-  --calendar-bg: #ffffff;
-  --button-text: #ffffff;
-  --grid-border: #e0e0e0;
+  --bg-app: #f2f2f3;
+  --text-main: #1c1f24;
+  --text-subtle: #6a707a;
+  --accent: #4a4f57;
+  --accent-hover: #383d45;
+  --header-bg: #e6e7e9;
+  --header-text: #2a2f37;
+  --btn-bg: #4a4f57;
+  --btn-bg-hover: #383d45;
+  --btn-border: #4a4f57;
+  --nav-bg: #f8f8f9;
+  --nav-border: #d7d9dd;
+  --toolbar-bg: #ececef;
+  --toolbar-border: #d7d9dd;
+  --panel-bg: #f7f7f8;
+  --calendar-bg: #f9f9fa;
+  --button-text: #f5f6f7;
+  --grid-border: #d7d9dd;
+  --row-hover: #eceef2;
+  --summary-bg: #e4e6ea;
+  --summary-text: #30353d;
 }
 
 .dark .app-shell {
-  --bg-app: #111111;
-  --text-main: #f0f0f0;
-  --text-subtle: #aaaaaa;
-  --accent: #f0f0f0;
-  --accent-hover: #cccccc;
-  --header-bg: #1d1d1d;
-  --header-text: #f0f0f0;
-  --btn-bg: #f0f0f0;
-  --btn-bg-hover: #cccccc;
-  --btn-border: #cccccc;
-  --nav-bg: #111111;
-  --nav-border: #2a2a2a;
-  --toolbar-bg: #111111;
-  --toolbar-border: #2a2a2a;
-  --panel-bg: #1a1a1a;
-  --calendar-bg: #1a1a1a;
-  --button-text: #111111;
-  --grid-border: #2a2a2a;
+  --bg-app: #0b0b0c;
+  --text-main: #ececef;
+  --text-subtle: #9ea0a6;
+  --accent: #b8bcc5;
+  --accent-hover: #d0d3da;
+  --header-bg: #141416;
+  --header-text: #d9dbe0;
+  --btn-bg: #b8bcc5;
+  --btn-bg-hover: #d0d3da;
+  --btn-border: #8f949e;
+  --nav-bg: #0b0b0c;
+  --nav-border: #232428;
+  --toolbar-bg: #16171a;
+  --toolbar-border: #2a2b30;
+  --panel-bg: #111214;
+  --calendar-bg: #0f1012;
+  --button-text: #101114;
+  --grid-border: #2a2b30;
+  --row-hover: #1a1b1f;
+  --summary-bg: #1d1f24;
+  --summary-text: #d1d4dc;
+  --glow-soft: rgba(255, 255, 255, 0.06);
+  --glow-strong: rgba(255, 255, 255, 0.12);
 }
 
 * {
@@ -91,10 +99,81 @@ body {
   border-bottom: 1px solid var(--nav-border);
 }
 
+.dark .app-shell .top-nav {
+  box-shadow: 0 1px 0 var(--nav-border), 0 8px 20px -18px rgba(0, 0, 0, 0.8);
+}
+
+.dark .app-shell .calendar-card {
+  box-shadow: 0 16px 36px -24px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.dark .app-shell .theme-toggle.is-active,
+.dark .app-shell .calendar-control-btn.is-active,
+.dark .app-shell .fc .fc-button-primary:not(:disabled).fc-button-active {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16), 0 0 0 3px rgba(255, 255, 255, 0.05);
+}
+
+.dark .app-shell .theme-toggle:hover,
+.dark .app-shell .calendar-control-btn:hover,
+.dark .app-shell .fc .fc-button-primary:hover {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.dark .app-shell .fc .fc-timeline-event:not(.summary-total-event) {
+  box-shadow: 0 2px 10px -8px rgba(0, 0, 0, 0.75);
+}
+
 .top-nav-actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  position: relative;
+}
+
+.menu-toggle {
+  min-width: 7.2rem;
+}
+
+.nav-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  min-width: 14.8rem;
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.42rem;
+  border: 1px solid var(--grid-border);
+  border-radius: 0.65rem;
+  background: var(--panel-bg);
+  box-shadow: 0 16px 34px -20px rgba(0, 0, 0, 0.45);
+  z-index: 40;
+}
+
+.nav-menu-item {
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.58rem;
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: transparent;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.nav-menu-item:hover {
+  background: var(--toolbar-bg);
+  border-color: var(--grid-border);
+}
+
+.nav-menu-item.is-active {
+  background: color-mix(in srgb, var(--btn-bg) 14%, transparent);
+  border-color: color-mix(in srgb, var(--btn-bg) 36%, var(--grid-border));
+}
+
+.dark .app-shell .nav-menu-dropdown {
+  box-shadow: 0 18px 38px -24px rgba(0, 0, 0, 0.8);
 }
 
 .brand-wrap {
@@ -158,11 +237,19 @@ body {
 }
 
 .calendar-controls {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 0.45rem;
   padding: 0 0.9rem 0.8rem;
+}
+
+.calendar-controls > .calendar-control-group:first-child {
+  justify-self: start;
+}
+
+.calendar-controls > .calendar-control-group:last-child {
+  justify-self: end;
 }
 
 .calendar-control-group {
@@ -222,6 +309,8 @@ body {
   font-size: clamp(0.86rem, 2vw, 1.08rem);
   color: var(--text-main);
   font-weight: 700;
+  text-align: center;
+  justify-self: center;
 }
 
 .calendar-card {
@@ -229,10 +318,22 @@ body {
   background: var(--panel-bg);
   border: 0;
   border-radius: 0;
-  padding: 0 0.9rem;
+  padding: 0;
   box-shadow: 0 10px 28px -18px rgba(39, 47, 61, 0.22);
   overflow-x: auto;
   overflow-y: visible;
+}
+
+.fc {
+  background: var(--calendar-bg);
+}
+
+.fc .fc-view-harness {
+  border-left: 1px solid var(--grid-border);
+  border-right: 1px solid var(--grid-border);
+  border-bottom: 1px solid var(--grid-border);
+  border-radius: 0 0 0.55rem 0.55rem;
+  overflow: hidden;
 }
 
 .fc .fc-toolbar-title {
@@ -305,6 +406,13 @@ body {
 .fc .fc-day-sat .fc-timeline-slot-cushion,
 .fc .fc-day-sun .fc-timeline-slot-cushion {
   color: #dc2626 !important;
+}
+
+.dark .app-shell .fc .fc-day-sat .fc-col-header-cell-cushion,
+.dark .app-shell .fc .fc-day-sun .fc-col-header-cell-cushion,
+.dark .app-shell .fc .fc-day-sat .fc-timeline-slot-cushion,
+.dark .app-shell .fc .fc-day-sun .fc-timeline-slot-cushion {
+  color: #f87171 !important;
 }
 
 .fc .fc-datagrid-header .fc-datagrid-cell-cushion {
@@ -424,11 +532,13 @@ body {
 .fc .summary-total-event {
   border: 0;
   border-radius: 0;
-  background: color-mix(in srgb, var(--header-bg) 75%, transparent) !important;
-  color: var(--text-main) !important;
+  background: var(--summary-bg) !important;
+  color: var(--summary-text) !important;
   inset-inline: 0 !important;
   box-shadow: none;
   pointer-events: none;
+  border-radius: 4px;
+  inset-inline: 2px !important;
 }
 
 .fc .summary-total-event .fc-event-main {
@@ -437,14 +547,14 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 100%;
-  color: var(--text-main) !important;
+  color: var(--summary-text) !important;
 }
 
 .fc .summary-total-event-text {
   font-size: 0.95rem;
   font-weight: 800;
   line-height: 1;
-  color: var(--text-main) !important;
+  color: var(--summary-text) !important;
 }
 
 .fc .fc-scrollgrid,
@@ -549,6 +659,7 @@ body {
 
 .fc .fc-resourceTimelineMonth-view .fc-timeline-header-row:first-child th {
   border-bottom-width: 0 !important;
+  box-shadow: none !important;
 }
 
 .fc .fc-resourceTimelineMonth-view .fc-timeline-header-row:last-child th {
@@ -599,20 +710,28 @@ body {
     padding: 0.7rem 0.75rem;
   }
 
+  .menu-toggle {
+    min-width: 6.5rem;
+    padding: 0.42rem 0.7rem;
+  }
+
+  .nav-menu-dropdown {
+    right: 0;
+    left: auto;
+    min-width: min(14rem, 88vw);
+  }
+
   .calendar-card {
-    padding: 0 0.5rem;
+    padding: 0;
   }
 
   .calendar-controls {
-    flex-wrap: wrap;
-    justify-content: center;
+    grid-template-columns: 1fr auto 1fr;
     padding: 0 0.5rem 0.4rem;
   }
 
   .calendar-title {
-    width: 100%;
-    text-align: center;
-    order: -1;
+    width: auto;
   }
 
   .fc .fc-resourceTimelineMonth-view .fc-timeline-slot-frame {
@@ -783,6 +902,11 @@ body {
 .driver-item-btn.delete {
   color: #b91c1c;
   border-color: #fca5a5;
+}
+
+.dark .app-shell .driver-item-btn.delete {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
 }
 
 .modal-label {
@@ -1042,6 +1166,16 @@ body {
   background: #fca5a5;
 }
 
+.dark .app-shell .sdcn-btn.destructive {
+  background: rgba(185, 28, 28, 0.15);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.dark .app-shell .sdcn-btn.destructive:hover:not(:disabled) {
+  background: rgba(185, 28, 28, 0.3);
+}
+
 .modal-btn {
   padding: 0.46rem 1.2rem;
   border-radius: 8px;
@@ -1081,8 +1215,8 @@ body {
 .modal-btn.save:hover:not(:disabled) { background: #15803d; }
 
 .modal-btn.save:disabled {
-  background: #cbd5e1;
-  color: #64748b;
+  background: var(--toolbar-bg);
+  color: var(--text-subtle);
   box-shadow: none;
 }
 
@@ -1093,6 +1227,21 @@ body {
 }
 
 .modal-btn.delete:hover { background: #fca5a5; }
+
+.dark .app-shell .modal-btn.save {
+  background: #22c55e;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2);
+}
+
+.dark .app-shell .modal-btn.save:hover:not(:disabled) { background: #16a34a; }
+
+.dark .app-shell .modal-btn.delete {
+  background: rgba(185, 28, 28, 0.15);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.dark .app-shell .modal-btn.delete:hover { background: rgba(185, 28, 28, 0.3); }
 
 /* ── Color picker ───────────────────────────────────────────── */
 .color-picker-row {
