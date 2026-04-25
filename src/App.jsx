@@ -761,12 +761,18 @@ export default function App() {
                 onChange={(e) => setRouteForm((prev) => ({ ...prev, title: e.target.value }))}
               />
               <label className="modal-label" style={{ marginTop: '0.7rem' }}>Group</label>
-              <input
+              <select
                 className="modal-input"
-                placeholder="e.g. Group A"
-                value={routeForm.group}
+                value={routeForm.group || 'General'}
                 onChange={(e) => setRouteForm((prev) => ({ ...prev, group: e.target.value }))}
-              />
+              >
+                <option value="General">General</option>
+                {routeGroups
+                  .filter((groupName) => normalizeName(groupName) !== normalizeName('General'))
+                  .map((groupName) => (
+                    <option key={groupName} value={groupName}>{groupName}</option>
+                  ))}
+              </select>
             </div>
             <div className="modal-footer">
               <button type="button" className="modal-btn cancel" onClick={closeRouteModal}>Cancel</button>
@@ -792,12 +798,18 @@ export default function App() {
                 onChange={(e) => setRouteForm((prev) => ({ ...prev, title: e.target.value }))}
               />
               <label className="modal-label" style={{ marginTop: '0.7rem' }}>Group</label>
-              <input
+              <select
                 className="modal-input"
-                placeholder="e.g. Group A"
-                value={routeForm.group}
+                value={routeForm.group || 'General'}
                 onChange={(e) => setRouteForm((prev) => ({ ...prev, group: e.target.value }))}
-              />
+              >
+                <option value="General">General</option>
+                {routeGroups
+                  .filter((groupName) => normalizeName(groupName) !== normalizeName('General'))
+                  .map((groupName) => (
+                    <option key={groupName} value={groupName}>{groupName}</option>
+                  ))}
+              </select>
             </div>
             <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
               <button type="button" className="modal-btn delete" onClick={() => openRouteDeleteDialog(editingRouteId)}>Delete</button>
