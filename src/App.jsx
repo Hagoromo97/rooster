@@ -49,7 +49,7 @@ function readStoredValue(key, fallback) {
 
 export default function App() {
   const { resolvedTheme, toggleTheme } = useTheme();
-  const [isEditMode, setIsEditMode] = useState(true);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [currentTitle, setCurrentTitle] = useState('');
   const [currentView, setCurrentView] = useState('resourceTimelineWeek');
   const calendarRef = useRef(null);
